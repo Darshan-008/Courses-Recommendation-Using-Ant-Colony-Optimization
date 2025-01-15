@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Course Recommendation Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #00DBDE;
+            background-image: linear-gradient(90deg, #00DBDE 0%, #FC00FF 100%);
+            margin: 0;
+            padding: 0;
+        }
+        .chatbot-container {
+            max-width: 600px;
+            margin: 20px auto;
+            background: white;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .chat-header {
+            background: rgb(22, 24, 26);
+            color: white;
+            padding: 10px;
+            text-align: center;
+            font-size: 18px;
+        }
+        .chat-body {
+            padding: 20px;
+            height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-message {
+            margin: 10px 0;
+        }
+        .user-message {
+            text-align: right;
+        }
+        .user-message .message {
+            display: inline-block;
+            background: #FC00FF;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+        }
+        .bot-message .message {
+            display: inline-block;
+            background: #00DBDE;
+            padding: 10px 15px;
+            border-radius: 20px;
+        }
+        .chat-footer {
+            display: flex;
+            border-top: 1px solid #ccc;
+            padding: 10px;
+            background: rgb(0, 0, 0);
+        }
+        .chat-footer input {
+            flex: 1;
+            border: none;
+            padding: 10px;
+            border-radius: 20px;
+            margin-right: 10px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+        .chat-footer button {
+            background: rgb(42, 47, 51);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+        .chat-footer button:hover {
+            background: rgb(33, 133, 128);
+        }
+    </style>
+</head>
+<body>
+
+<div class="chatbot-container">
+    <div class="chat-header">Course Recommendation Chatbot</div>
+    <div class="chat-body" id="chat-body">
+        <div class="chat-message bot-message">
+            <div class="message">Hello! Please enter your skills to get recommended courses.</div>
+        </div>
+    </div>
+    <div class="chat-footer">
+        <input type="text" id="user-input" placeholder="Type your skills here...">
+        <button onclick="sendMessage()">Send</button>
+    </div>
+</div>
+
+<div style="text-align: center; margin-top: 20px;">
+    <button onclick="viewAccuracyGraph()">View Accuracy Graph</button>
+</div>
+
+<script>
+    async function sendMessage() {
+        const userInput = document.getElementById('user-input').value.trim();
+        if (!userInput) return;
+
+        const chatBody = document.getElementById('chat-body');
+        const userMessage = document.createElement('div');
+        userMessage.className = 'chat-message user-message';
+        userMessage.innerHTML = `<div class="message">${userInput}</div>`;
+        chatBody.appendChild(userMessage);
+
+        document.getElementById('user-input').value = '';
+
+        const botTyping = document.createElement('div');
+        botTyping.className = 'chat-message bot-message';
+        botTyping.innerHTML = `<div class="message">Typing...</div>`;
+        chatBody.appendChild(botTyping);
+
+        chatBody.scrollTop = chatBody.scrollHeight;
+
+        try {
+            const response = await fetch('/recommend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ skills: userInput })
+            });
+
+            const data = await response.json();
+            botTyping.remove();
+
+            if (data.recommendations && data.recommendations.length > 0) {
+                data.recommendations.forEach(course => {
+                    const botMessage = document.createElement('div');
+                    botMessage.className = 'chat-message bot-message';
+                    botMessage.innerHTML = `
+                        <div class="message">
+                            <strong>Course Name:</strong> ${course.course_name}<br>
+                            <strong>Provided By:</strong> ${course.course_provided_by}<br>
+                            <strong>Skills Covered:</strong> ${course.skills}<br>
+                            <strong>Rating:</strong> ${course.course_rating}<br>
+                            <strong>URL:</strong> <a href="${course.course_url}" target="_blank">${course.course_url}</a><br>
+                            <button onclick="submitFeedback(${course.course_id}, 1)">👍</button>
+                            <button onclick="submitFeedback(${course.course_id}, 0)">👎</button>
+                        </div>`;
+                    chatBody.appendChild(botMessage);
+                });
+            } else {
+                const botMessage = document.createElement('div');
+                botMessage.className = 'chat-message bot-message';
+                botMessage.innerHTML = `<div class="message">Sorry, no courses match your skills.</div>`;
+                chatBody.appendChild(botMessage);
+            }
+        } catch (error) {
+            botTyping.remove();
+            const botMessage = document.createElement('div');
+            botMessage.className = 'chat-message bot-message';
+            botMessage.innerHTML = `<div class="message">Oops! Something went wrong. Please try again.</div>`;
+            chatBody.appendChild(botMessage);
+        }
+
+        chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    async function submitFeedback(courseId, isPositive) {
+        try {
+            const feedback = { course_id: courseId, feedback: isPositive };
+            const response = await fetch('/submit_feedback', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(feedback)
+            });
+
+            if (response.ok) {
+                alert("Thank you for your feedback!");
+            } else {
+                alert("Error submitting feedback. Please try again.");
+            }
+        } catch (error) {
+            alert("Error submitting feedback. Please try again.");
+        }
+    }
+
+    async function viewAccuracyGraph() {
+        try {
+            const response = await fetch('/accuracy_graph');
+            const data = await response.json();
+
+            if (data.graph) {
+                const img = document.createElement('img');
+                img.src = `data:image/png;base64,${data.graph}`;
+                img.style.width = '100%';
+
+                const chatBody = document.getElementById('chat-body');
+                const botMessage = document.createElement('div');
+                botMessage.className = 'chat-message bot-message';
+                botMessage.appendChild(img);
+
+                chatBody.appendChild(botMessage);
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }
+        } catch (error) {
+            alert("Error retrieving accuracy graph. Please try again.");
+        }
+    }
+</script>
+
+</body>
+</html>
