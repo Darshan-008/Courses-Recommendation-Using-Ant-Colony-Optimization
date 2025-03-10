@@ -1,0 +1,1 @@
+web: gunicorn aco1:app
